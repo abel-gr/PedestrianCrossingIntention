@@ -173,7 +173,7 @@ def train(model, train_loader, device, optimizer, crit):
         label = data.y.to(device)
 
         label = reshape(label, (output.shape[0], output.shape[1]))
-
+        
         loss = crit(output, label)
 
         loss.backward()
