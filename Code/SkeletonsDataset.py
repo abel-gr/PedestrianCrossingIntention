@@ -232,7 +232,7 @@ class SkeletonsDataset(Dataset):
             firstJoint = True
             for joint in skeleton[:-1]:
                 coords = joint[2 if firstJoint else 1:]
-                firstJoin = False
+                firstJoint = False
                         
                 coords = np.fromstring(coords, dtype=np.float32, sep=',')
 
@@ -243,6 +243,22 @@ class SkeletonsDataset(Dataset):
             jointCoords.append(lastJoint)
 
             jointCoords = np.asarray(jointCoords)
+            
+            if self.normalization is 'minmax':
+                
+                xmax = np.amax(jointCoords, axis=0, keepdims=True)
+                
+                # Avoid using missing joints in the minimum operation:
+                fzeros = np.zeros(shape=(jointCoords.shape[1]))
+                jointM = np.where(jointCoords==fzeros, xmax, jointCoords)
+                xmin = np.amin(jointM, axis=0, keepdims=True)
+                            
+                jointCoords_n = (jointCoords - xmin) / (xmax - xmin)
+                
+                # Set the missing joints as [0, 0, ...] also in the final graph array:
+                jointCoords = np.where(jointCoords==fzeros, fzeros, jointCoords_n)
+                
+            
             y = np.asarray(target[i])
 
             x = torch.tensor(jointCoords, dtype=torch.float)
@@ -255,6 +271,7 @@ class SkeletonsDataset(Dataset):
 
         
         x_values = torch.stack(x_values) # Dim0: n samples, Dim1: m nodes per sample, Dim2: k features per node
+        
         
         if self.normalization is 'standardization':
             
@@ -271,13 +288,14 @@ class SkeletonsDataset(Dataset):
             self.xmean = xmean
             self.xstd = xstd
             
+        """
         elif self.normalization is 'minmax':
             
             # Min-max normalization:
             
             if self.norm_precomputed_values is None:
-                xmax = torch.amax(x_values, dim=[0,1], keepdim=True)
-                xmin = torch.amin(x_values, dim=[0,1], keepdim=True)
+                xmax = torch.amax(x_values, dim=[1], keepdim=True)                
+                xmin = torch.amin(x_values, dim=[1], keepdim=True)
             else:
                 xmax, xmin = self.norm_precomputed_values
             
@@ -285,6 +303,20 @@ class SkeletonsDataset(Dataset):
             
             self.xmax = xmax
             self.xmin = xmin
+        """
+            
+        if self.normalization is 'max':
+            
+            # Max normalization:
+            
+            if self.norm_precomputed_values is None:
+                xmax = torch.amax(x_values, dim=[1], keepdim=True)                
+            else:
+                xmax = self.norm_precomputed_values
+            
+            x_values = x_values / xmax
+            
+            self.xmax = xmax
 
         
         edge_index = torch.tensor(self.edgeindex, dtype=torch.long)
@@ -313,12 +345,12 @@ class SkeletonsDataset(Dataset):
             
             numFrames = self.graphInfo if type(self.graphInfo) is int else 2
             
-            for i in range(0, x_values.shape[0] - numFrames*2 + 1):
+            for i in range(numFrames*2 - 1, x_values.shape[0]):
                 
-                targets_i = target[i:i+numFrames*2]
+                targets_i = target[i - numFrames*2 + 1:i + 1]
                 crossing_class_i = targets_i[:, 1]
                                 
-                # If the pedestrian is crossing in the numFrames frames of the temporal graph, or in the next numFrames frames
+                # If the pedestrian is crossing in the numFrames frames of the temporal graph, or in the previous numFrames frames
                 if 1 in crossing_class_i:
                     label_i = 1
                     y_value_i = [0, 1]
@@ -329,21 +361,22 @@ class SkeletonsDataset(Dataset):
                 label_i = torch.tensor(label_i, dtype=torch.float)
                 y_value_i = torch.tensor(y_value_i, dtype=torch.float)
                                 
+                currentFrame = i - numFrames
                                 
-                id_video_i = videoIDs[i]
+                id_video_i = videoIDs[currentFrame]
                 
                 x_temp = []
                 
                 for j in range(0, numFrames):
                     
-                    id_video_j = videoIDs[i+j]
+                    id_video_j = videoIDs[currentFrame-j]
                     
-                    # Ensure that next frames are from the same video:
+                    # Ensure that all frames are from the same video:
                     if id_video_i == id_video_j:
                     
-                        x_temp.append(x_values[i+j])
+                        x_temp.append(x_values[currentFrame-j])
                         
-                    # next frame is from the next video
+                    # Frame is from another video:
                     else:
                         
                         break
@@ -357,7 +390,7 @@ class SkeletonsDataset(Dataset):
                     #data_element = StaticGraphTemporalSignal(features=x_temp, targets=y_temp, label=label_temp, edge_index=edge_index, edge_weight=self.edge_weights)
 
                     # StaticGraphTemporalSignal is not compatible with DataLoader, so I use Data class here again, but now x is a list of tensors.
-                    data_element = Data(x_temporal=x_temp, y=y_value_i, label=label_i, edge_index=edge_index, num_nodes=x_values[i].shape[0], edge_weight=self.edge_weights)
+                    data_element = Data(x_temporal=x_temp, y=y_value_i, label=label_i, edge_index=edge_index, num_nodes=x_values[currentFrame].shape[0], edge_weight=self.edge_weights)
 
                     self.data.append(data_element)            
             
