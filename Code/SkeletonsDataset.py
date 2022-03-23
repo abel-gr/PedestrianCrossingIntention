@@ -360,21 +360,21 @@ class SkeletonsDataset(Dataset):
                 
                 label_i = torch.tensor(label_i, dtype=torch.float)
                 y_value_i = torch.tensor(y_value_i, dtype=torch.float)
-                                
-                currentFrame = i - numFrames
+                                                
+                currentFrame = i - numFrames*2 + 1
                                 
                 id_video_i = videoIDs[currentFrame]
-                
+                                
                 x_temp = []
                 
                 for j in range(0, numFrames):
                     
-                    id_video_j = videoIDs[currentFrame-j]
-                    
+                    id_video_j = videoIDs[currentFrame+j]
+                                        
                     # Ensure that all frames are from the same video:
                     if id_video_i == id_video_j:
                     
-                        x_temp.append(x_values[currentFrame-j])
+                        x_temp.append(x_values[currentFrame+j])
                         
                     # Frame is from another video:
                     else:
