@@ -48,7 +48,7 @@ class SpatialTemporalGNN(nn.Module):
         size_out2 = int(size_in2 * 0.5)
         self.lin2 = nn.Linear(size_in2, size_out2)
         
-        self.lin3 = nn.Linear(size_out1, outputSize)
+        self.lin3 = nn.Linear(size_out2, outputSize)
         
         
         # Definition of extras
@@ -81,7 +81,7 @@ class SpatialTemporalGNN(nn.Module):
             # H: Hidden state matrix for all nodes
             H_i = self.conv1(X=x_i, edge_index=edge_index, edge_weight=edge_weight, H=H_i)
             
-            H_i = self.dropout5(H_i)
+            H_i = self.dropout3(H_i)
             
             H_i = self.relu(H_i)
             
@@ -93,15 +93,15 @@ class SpatialTemporalGNN(nn.Module):
         
         x = self.lin1(x)
         
-        x = self.dropout5(x)
+        x = self.dropout3(x)
 
         x = self.relu(x)
         
-        #x = self.lin2(x)
+        x = self.lin2(x)
         
-        #x = self.dropout5(x)
+        x = self.dropout3(x)
 
-        #x = self.relu(x)
+        x = self.relu(x)
 
         x = self.lin3(x)
         
