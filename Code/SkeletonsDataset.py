@@ -1,6 +1,8 @@
 import numpy as np
 import random
 import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 
 import torch
 from torch.utils.data import Dataset
@@ -20,7 +22,7 @@ class SkeletonsDataset(Dataset):
     target: 'cross' or 'crossing'
     info: 'spatial' or int representing the number of frames for a spatial-temporal approach.
     """
-    def __init__(self, csv_path, numberOfJoints=25, normalization='minmax', norm_precomputed_values=None, target='cross', info='spatial', transform=None):
+    def __init__(self, csv_path, numberOfJoints=25, normalization='minmax', norm_precomputed_values=None, target='cross', info='spatial', remove_undetected=True, transform=None):
 
         self.data=[]
         self.csv_path = csv_path
@@ -28,6 +30,7 @@ class SkeletonsDataset(Dataset):
         self.norm_precomputed_values = norm_precomputed_values
         self.targetName = target
         self.graphInfo = info
+        self.remove_undetected = remove_undetected
         
         
         if numberOfJoints == 25:
@@ -192,8 +195,9 @@ class SkeletonsDataset(Dataset):
 
     def processData(self):
         
-        # Drop all samples in which the skeleton was not detected on the previous pipeline step
-        self.loadedData = self.loadedData[self.loadedData['skeleton_detected']==True]
+        if self.remove_undetected:
+            # Drop all samples in which the skeleton was not detected on the previous pipeline step
+            self.loadedData = self.loadedData[self.loadedData['skeleton_detected']==True]
 
         # Preprocess the target of the network:
         
@@ -216,10 +220,13 @@ class SkeletonsDataset(Dataset):
         # Preprocess the input of the network:
         
         skeletonData = self.loadedData['skeleton'].tolist()
+        videoIDs = self.loadedData['video'].tolist()
 
         y_values = []
         x_values = []
         label_values = []
+        
+        self.original_skeletons = {} # Skeletons without any normalization or processing for image display
 
         # For each skeleton of the dataset
         for i, skeleton in enumerate(skeletonData):
@@ -244,6 +251,12 @@ class SkeletonsDataset(Dataset):
 
             jointCoords = np.asarray(jointCoords)
             
+            videoID = videoIDs[i]
+            if videoID in self.original_skeletons:
+                self.original_skeletons[videoID].append(np.copy(jointCoords))
+            else:
+                self.original_skeletons[videoID] = [np.copy(jointCoords)]
+            
             if self.normalization is 'minmax':
                 
                 xmax = np.amax(jointCoords, axis=0, keepdims=True)
@@ -253,7 +266,7 @@ class SkeletonsDataset(Dataset):
                 jointM = np.where(jointCoords==fzeros, xmax, jointCoords)
                 xmin = np.amin(jointM, axis=0, keepdims=True)
                             
-                jointCoords_n = (jointCoords - xmin) / (xmax - xmin)
+                jointCoords_n = (jointCoords - xmin) / ((xmax - xmin) + 1e-20)
                 
                 # Set the missing joints as [0, 0, ...] also in the final graph array:
                 jointCoords = np.where(jointCoords==fzeros, fzeros, jointCoords_n)
@@ -336,13 +349,11 @@ class SkeletonsDataset(Dataset):
                 edge_index: Graph connectivity in COO format with shape [2, num_edges]
                 num_nodes: Number of nodes of the graph.
                 """
-                data_element = Data(x=x, y=y_values[iy], label=label_values[iy], edge_index=edge_index, num_nodes=x.shape[0])
+                data_element = Data(x=x, y=y_values[iy], label=label_values[iy], edge_index=edge_index, num_nodes=x.shape[0], videoID=videoIDs[iy])
                 self.data.append(data_element)
                 
         else: # Group graphs of the same videos to add the temporal dimension, getting spatial-temporal graphs:
-            
-            videoIDs = self.loadedData['video'].tolist()
-            
+                        
             numFrames = self.graphInfo if type(self.graphInfo) is int else 2
             
             for i in range(numFrames*2 - 1, x_values.shape[0]):
@@ -390,12 +401,61 @@ class SkeletonsDataset(Dataset):
                     #data_element = StaticGraphTemporalSignal(features=x_temp, targets=y_temp, label=label_temp, edge_index=edge_index, edge_weight=self.edge_weights)
 
                     # StaticGraphTemporalSignal is not compatible with DataLoader, so I use Data class here again, but now x is a list of tensors.
-                    data_element = Data(x_temporal=x_temp, y=y_value_i, label=label_i, edge_index=edge_index, num_nodes=x_values[currentFrame].shape[0], edge_weight=self.edge_weights)
+                    data_element = Data(x_temporal=x_temp, y=y_value_i, label=label_i, edge_index=edge_index,
+                                        num_nodes=x_values[currentFrame].shape[0], edge_weight=self.edge_weights, videoID=id_video_i)
 
                     self.data.append(data_element)            
             
 
 
+            
+    def showSkeleton(self, videoNum=0, frameNum=0, textSize=14, showLegend=True, frameImage=None, normalizedSkeletons=True, title='Skeleton preview in 2D', show=True):
+        
+        parts = list(self.body_parts.keys())
+
+        node_coords = {}
+
+        fig = plt.figure(figsize=(10,10)) if show else Figure(figsize=(10,10))
+            
+        ax = fig.add_subplot(1, 1, 1)
+
+        if normalizedSkeletons:
+            skeleton = self.data[videoNum].x_temporal[frameNum][:, 0:2].tolist()
+        else:
+            skeleton = self.original_skeletons[videoNum][frameNum][:, 0:2].tolist()
+
+        for e, sk in enumerate(skeleton):    
+            node_coords[parts[e]] = sk
+
+            ax.scatter(sk[0], sk[1], label=parts[e])
+
+        for edge in self.pose_parts:
+            e0 = node_coords[edge[0]]
+            e1 = node_coords[edge[1]]
+
+            ax.plot([e0[0], e1[0]], [e0[1], e1[1]], color='gray')
+
+            
+        if showLegend:
+            ax.legend(loc='best', prop={'size': 11})
+            
+        if frameImage is not None:
+            ax.imshow(frameImage)
+        
+        if show:
+            plt.xticks(size=textSize)
+            plt.yticks(size=textSize)
+            plt.title(title, size=textSize)
+            
+        else:
+            ax.set_title(title, size=textSize)
+        
+        if show:
+            plt.show()
+        else:
+            return fig
+            
+            
     def shuffle(self):
         random.shuffle(self.data)
         return self
