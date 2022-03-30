@@ -120,6 +120,38 @@ def evaluate(model, loader, device, computed_loss=None, loss_crit=None):
     return metrics
 
 
+
+"""
+model: Model to be evaluated
+loader: DataLoader with the data to the processed by the model
+device: Device that will execute the model
+"""
+def predict(model, loader, device):
+    
+    model.eval()
+
+    predictions = []
+    labels = []
+    
+    with no_grad():
+        for data in loader:
+
+            data = data.to(device)
+            
+            # Compute predictions
+            output = model(data)
+            
+            pred = output.detach().cpu()
+            pred = argmax(pred, dim=-1).tolist()
+            predictions.extend(pred)
+
+            label = data.label.detach().cpu().float().numpy().tolist()
+            labels.extend(label)
+            
+            
+    return [predictions, labels] # Returns the predictions and the groundtruth
+
+
 def ROC(model, loader, device, numberOfClasses):
     
     model.eval()
