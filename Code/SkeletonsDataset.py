@@ -16,7 +16,7 @@ class SkeletonsDataset(Dataset):
     Allowed values:
     
     csv_path: string
-    numberOfJoints: 25 or 18
+    numberOfJoints: 26, 25 or 18
     normalization: minmax or standardization
     norm_precomputed_values: None or tuple of [max, min] or [mean, std] precomputed values
     target: 'cross' or 'crossing'
@@ -33,7 +33,7 @@ class SkeletonsDataset(Dataset):
         self.remove_undetected = remove_undetected
         
         
-        if numberOfJoints == 25:
+        if numberOfJoints == 25: # JAAD videos + OpenPose
             
             self.body_parts = {
                 "Nose": 0,
@@ -91,6 +91,66 @@ class SkeletonsDataset(Dataset):
                 ["LEye", "LEar"],
             ]
             
+        elif numberOfJoints == 26: # CARLA simulator
+            
+            self.body_parts = {
+                "crl_root": 0,
+                "crl_hips__C": 1,
+                "crl_spine__C": 2,
+                "crl_spine01__C": 3,
+                "crl_shoulder__L": 4,
+                "crl_arm__L": 5,
+                "crl_foreArm__L": 6,
+                "crl_hand__L": 7,
+                "crl_neck__C": 8,
+                "crl_Head__C": 9,
+                "crl_eye__L": 10,
+                "crl_eye__R": 11,
+                "crl_shoulder__R": 12,
+                "crl_arm__R": 13,
+                "crl_foreArm__R": 14,
+                "crl_hand__R": 15,
+                "crl_thigh__R": 16,
+                "crl_leg__R": 17,
+                "crl_foot__R": 18,
+                "crl_toe__R": 19,
+                "crl_toeEnd__R": 20,
+                "crl_thigh__L": 21,
+                "crl_leg__L": 22,
+                "crl_foot__L": 23,
+                "crl_toe__L": 24,
+                "crl_toeEnd__L": 25,
+            }
+            
+            
+            self.pose_parts = [
+                ['crl_root', 'crl_hips__C'],
+                ['crl_hips__C', 'crl_spine__C'],
+                ['crl_hips__C', 'crl_thigh__R'],
+                ['crl_hips__C', 'crl_thigh__L'],
+                ['crl_spine__C', 'crl_spine01__C'],
+                ['crl_spine01__C', 'crl_shoulder__L'],
+                ['crl_spine01__C', 'crl_neck__C'],
+                ['crl_spine01__C', 'crl_shoulder__R'],
+                ['crl_shoulder__L', 'crl_arm__L'],
+                ['crl_arm__L', 'crl_foreArm__L'],
+                ['crl_foreArm__L', 'crl_hand__L'],
+                ['crl_neck__C', 'crl_Head__C'],
+                ['crl_Head__C', 'crl_eye__L'],
+                ['crl_Head__C', 'crl_eye__R'],
+                ['crl_shoulder__R', 'crl_arm__R'],
+                ['crl_arm__R', 'crl_foreArm__R'],
+                ['crl_foreArm__R', 'crl_hand__R'],
+                ['crl_thigh__R', 'crl_leg__R'],
+                ['crl_leg__R', 'crl_foot__R'],
+                ['crl_foot__R', 'crl_toe__R'],
+                ['crl_toe__R', 'crl_toeEnd__R'],
+                ['crl_thigh__L', 'crl_leg__L'],
+                ['crl_leg__L', 'crl_foot__L'],
+                ['crl_foot__L', 'crl_toe__L'],
+                ['crl_toe__L', 'crl_toeEnd__L']
+            ]
+                
             
         else:
     
@@ -334,7 +394,7 @@ class SkeletonsDataset(Dataset):
         
         edge_index = torch.tensor(self.edgeindex, dtype=torch.long)
         
-        # Each graph is independent, so only spatial dimension is used:
+        # If each graph is independent, only spatial dimension is used:
         if self.graphInfo == 'spatial':
         
             for iy, x in enumerate(x_values):
@@ -409,7 +469,8 @@ class SkeletonsDataset(Dataset):
 
 
             
-    def showSkeleton(self, videoNum=0, frameNum=0, textSize=14, showLegend=True, frameImage=None, normalizedSkeletons=True, title='Skeleton preview in 2D', show=True):
+    def showSkeleton(self, videoNum=0, frameNum=0, textSize=14, showLegend=True, frameImage=None, normalizedSkeletons=True, 
+                     title='Skeleton preview in 2D', show=True, prediction=None, groundtruth=None):
         
         parts = list(self.body_parts.keys())
 
@@ -441,6 +502,29 @@ class SkeletonsDataset(Dataset):
             
         if frameImage is not None:
             ax.imshow(frameImage)
+            
+        if prediction is not None:
+            
+            if groundtruth is not None:
+                
+                textColor = 'green' if prediction == groundtruth else 'red'
+                
+            else:
+                
+                textColor = 'black'
+                
+            sk_arr = np.asarray(skeleton)
+            sk_arr = sk_arr[list(set(np.where(sk_arr != [0.0, 0.0])[0]))] # Removes the missing joints
+            
+            if sk_arr.shape[0] == 0: # All joints are missing
+                
+                textCoords = [0, 0]
+                
+            else:
+                
+                textCoords = sk_arr[np.argmin(sk_arr[:, 1])]
+                
+            ax.text(textCoords[0] * 0.95, textCoords[1] * 0.95, prediction, color=textColor, fontsize='medium')
         
         if show:
             plt.xticks(size=textSize)
