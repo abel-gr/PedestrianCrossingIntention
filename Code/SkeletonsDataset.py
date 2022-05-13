@@ -317,7 +317,7 @@ class SkeletonsDataset(Dataset):
             else:
                 self.original_skeletons[videoID] = [np.copy(jointCoords)]
             
-            if self.normalization is 'minmax':
+            if self.normalization == 'minmax':
                 
                 xmax = np.amax(jointCoords, axis=0, keepdims=True)
                 
@@ -346,7 +346,7 @@ class SkeletonsDataset(Dataset):
         x_values = torch.stack(x_values) # Dim0: n samples, Dim1: m nodes per sample, Dim2: k features per node
         
         
-        if self.normalization is 'standardization':
+        if self.normalization == 'standardization':
             
             # Standardization:
             
@@ -362,7 +362,7 @@ class SkeletonsDataset(Dataset):
             self.xstd = xstd
             
         """
-        elif self.normalization is 'minmax':
+        elif self.normalization == 'minmax':
             
             # Min-max normalization:
             
@@ -378,7 +378,7 @@ class SkeletonsDataset(Dataset):
             self.xmin = xmin
         """
             
-        if self.normalization is 'max':
+        if self.normalization == 'max':
             
             # Max normalization:
             
@@ -414,7 +414,7 @@ class SkeletonsDataset(Dataset):
                 
         else: # Group graphs of the same videos to add the temporal dimension, getting spatial-temporal graphs:
                         
-            numFrames = self.graphInfo if type(self.graphInfo) is int else 2
+            numFrames = self.graphInfo if isinstance(self.graphInfo, int) else 2
             
             for i in range(numFrames*2 - 1, x_values.shape[0]):
                 
