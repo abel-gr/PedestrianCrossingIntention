@@ -16,20 +16,27 @@ def plot_loss(num_epochs, loss_values, figsize=10, textsize=15):
 def plot_classification_metrics_train_val(num_epochs, metrics_train, metrics_val, figsize=10, textsize=15):
     
     for metricName in metrics_train[0].keys():
+        
+        if metricName.lower() == "epoch":
+            continue
     
         metricValuesPerEpoch_train = []
         metricValuesPerEpoch_val = []
 
+        plt.figure(figsize=(figsize,figsize))
+        plt.title(metricName, size=textsize)
+
         for m in metrics_train:
             metricValuesPerEpoch_train.append(m[metricName])
 
-        for m in metrics_val:
-            metricValuesPerEpoch_val.append(m[metricName])
-
-        plt.figure(figsize=(figsize,figsize))
-        plt.title(metricName, size=textsize)
         plt.plot(np.arange(1, num_epochs+1), metricValuesPerEpoch_train, color='blue', label='Training set')
-        plt.plot(np.arange(1, num_epochs+1), metricValuesPerEpoch_val, color='darkgreen', label='Validation set')
+
+        if metricName in metrics_val[0].keys():
+            for m in metrics_val:
+                metricValuesPerEpoch_val.append(m[metricName])
+
+            plt.plot(np.arange(1, num_epochs+1), metricValuesPerEpoch_val, color='darkgreen', label='Validation set')
+        
         plt.xlabel("Epoch", size=textsize)
         plt.ylabel(metricName, size=textsize)
         plt.xticks(size=textsize)
