@@ -511,7 +511,7 @@ class SkeletonsDataset(Dataset):
                 
             else:
                 
-                textColor = 'black'
+                textColor = 'white'
                 
             sk_arr = np.asarray(skeleton)
             sk_arr = sk_arr[list(set(np.where(sk_arr != [0.0, 0.0])[0]))] # Removes the missing joints
@@ -524,7 +524,7 @@ class SkeletonsDataset(Dataset):
                 
                 textCoords = sk_arr[np.argmin(sk_arr[:, 1])]
                 
-            ax.text(textCoords[0] * 0.95, textCoords[1] * 0.95, prediction, color=textColor, fontsize='medium')
+            ax.text(textCoords[0] * 0.95, textCoords[1] * 0.95, prediction, color=textColor, fontsize='medium', backgroundcolor='black')
         
         if show:
             plt.xticks(size=textSize)
