@@ -17,11 +17,17 @@ def print_evaluation_train_val(epoch, train_metrics, val_metrics):
     output_p = []
         
     for metricName, metricValue in train_metrics_items:
+        if metricName.lower() == "epoch":
+            continue
+            
         ev = ('Train ' + metricName + ':').ljust(26) + '{:10.4f}  -  '.format(metricValue)
         output_p.append(ev)
         
     i = 0
     for metricName, metricValue in val_metrics_items:
+        if metricName.lower() == "epoch":
+            continue
+            
         ev = ('Validation ' + metricName + ':').ljust(31) + '{:10.4f}\n'.format(metricValue)
         
         if i < len(output_p):
