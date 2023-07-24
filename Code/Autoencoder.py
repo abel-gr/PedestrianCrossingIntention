@@ -45,27 +45,30 @@ class GraphConvolutionalAutoencoder(nn.Module):
         
         super(GraphConvolutionalAutoencoder, self).__init__()
         
+        self.embed_dim = embed_dim
+        self.numNodes = numNodes
+        
         size_in1 = embed_dim
                 
-        size_out1 = math.floor(size_in1 * 2)
+        size_out1 = math.floor(size_in1 * 5)
         self.conv1 = GCNConv(size_in1, size_out1)
-        self.pool1 = TopKPooling(size_out1, ratio=0.5)
+        self.pool1 = TopKPooling(size_out1, ratio=0.5, nonlinearity=torch.nn.functional.relu)
         
-        size_out2 = math.floor(size_out1 * 2)
+        size_out2 = math.floor(size_out1 * 5)
         self.conv2 = GCNConv(size_out1, size_out2)
-        self.pool2 = TopKPooling(size_out2, ratio=0.5)
+        self.pool2 = TopKPooling(size_out2, ratio=0.5, nonlinearity=torch.nn.functional.relu)
         
-        size_out3 = math.floor(size_out2 * 2)
+        size_out3 = math.floor(size_out2 * 5)
         self.conv3 = GCNConv(size_out2, size_out3)
-        self.pool3 = TopKPooling(size_out3, ratio=0.5)
+        self.pool3 = TopKPooling(size_out3, ratio=0.5, nonlinearity=torch.nn.functional.relu)
         
-        size_out4 = math.floor(size_out3 * 0.5)
+        size_out4 = math.floor(size_out3 * 0.2)
         self.conv4 = GCNConv(size_out3, size_out4)
         
-        size_out5 = math.floor(size_out4 * 0.5)
+        size_out5 = math.floor(size_out4 * 0.2)
         self.conv5 = GCNConv(size_out4, size_out5)
         
-        size_out6 = math.floor(size_out5 * 0.5)
+        size_out6 = math.floor(size_out5 * 0.2)
         self.conv6 = GCNConv(size_out5, size_out6)
         
         self.dropout5 = nn.Dropout(p=0.5)
@@ -80,13 +83,11 @@ class GraphConvolutionalAutoencoder(nn.Module):
         #print(x.shape)
         
         if noise == 'random':
-            random_noise = Tensor(np.repeat(np.where(np.random.uniform(size=(self.numNodes, 1)) <= 0.5, 0, 1), self.embed_dim, axis=1))
-            random_noise = random_noise.view(self.numNodes * self.embed_dim)
+            random_noise = Tensor(np.repeat(np.where(np.random.uniform(size=(x.shape[0], 1)) <= 0.5, 0, 1), self.embed_dim, axis=1))
             x = x * random_noise
             
         elif noise == 'targeted':
-            targeted_noise = Tensor(np.repeat(targeted_denoising(), self.embed_dim, axis=1))
-            targeted_noise = targeted_noise.view(self.numNodes * self.embed_dim)
+            targeted_noise = Tensor(np.repeat(np.repeat(targeted_denoising(), int(x.shape[0] / self.numNodes), axis=0), self.embed_dim, axis=1))
             x = x * targeted_noise
         
         x_prev_pool = []
