@@ -1,27 +1,39 @@
+import torch
+
 from torch_geometric.nn import GCNConv, SAGEConv
 from torch_geometric.nn import TopKPooling
 from torch_geometric.nn import global_mean_pool, global_max_pool
 
-from torch_geometric_temporal.nn import GConvGRU
+from torch_geometric_temporal.nn import GConvGRU, GConvLSTM, TGCN, DCRNN, GCLSTM
 
 from torch import nn
 from torch import flatten
 from torch import reshape
+from torch import matmul
+from torch import zeros
+
+import torch.nn.functional as F
 
 import math
 
-#from GraphConvolution import *
-
-
 class SpatialTemporalGNN(nn.Module):
     
-    def __init__(self, embed_dim, outputSize, numNodes, net='GConvGRU', filterSize=3):
+    def __init__(self, embed_dim, outputSize, numNodes, net='GConvGRU', filterSize=3, dropout=0.3, batchSize=1000, compute_explainability=False, compute_attention=False):
         
         super(SpatialTemporalGNN, self).__init__()
         
         self.embed_dim = embed_dim
         self.outputSize = outputSize
         self.numNodes = numNodes
+        self.convNet = net
+        self.compute_explainability = compute_explainability
+        self.compute_attention = compute_attention
+        
+        if self.compute_explainability:
+            self.last_conv_act = None
+        
+        if self.compute_attention:
+            self.attended_h = [] #zeros((numNodes, filterSize))
                 
         # Definition of Conv layers:
         
@@ -36,6 +48,30 @@ class SpatialTemporalGNN(nn.Module):
             
             self.conv2 = GConvGRU(size_out0, size_out0, filterSize)
             
+        elif net == 'GConvLSTM':
+            
+            self.conv1 = GConvLSTM(size_in0, size_out0, filterSize)
+            
+            self.conv2 = GConvLSTM(size_out0, size_out0, filterSize)
+            
+            
+        elif net == 'TGCN':
+            
+            self.conv1 = TGCN(size_in0, size_out0)
+            
+            self.conv2 = TGCN(size_out0, size_out0)
+            
+        elif net == 'DCRNN':
+            
+            self.conv1 = DCRNN(size_in0, size_out0, filterSize)
+            
+            self.conv2 = DCRNN(size_out0, size_out0, filterSize)
+            
+        elif net == 'GCLSTM':
+            
+            self.conv1 = GCLSTM(size_in0, size_out0, filterSize)
+            
+            self.conv2 = GCLSTM(size_out0, size_out0, filterSize)
             
         
         # Definition of linear layers:
@@ -55,9 +91,11 @@ class SpatialTemporalGNN(nn.Module):
         
         self.softmax = nn.Softmax(dim=-1)
         
+        self.dropout = nn.Dropout(p=dropout)
         self.dropout3 = nn.Dropout(p=0.3)
         self.dropout5 = nn.Dropout(p=0.5)
         self.dropout7 = nn.Dropout(p=0.7)
+        
         
         # Definition of activation functions
         
@@ -65,9 +103,17 @@ class SpatialTemporalGNN(nn.Module):
         self.sigmoid = nn.Sigmoid()
         
     
+    def set_grad(self, var):
+        def grad_var(grad):
+            var.grad = grad
+        return grad_var
+        
+    
     def forward(self, data):
         
         x_list, edge_index, edge_weight, batch = data.x_temporal, data.edge_index, data.edge_weight, data.batch
+
+        batch_size = int(data.batch[-1].detach().cpu()) + 1
         
         H_i = None
         
@@ -79,9 +125,34 @@ class SpatialTemporalGNN(nn.Module):
             # edge_index: Edges connectivity in COO format
             # edge_weight: Weights of the edges
             # H: Hidden state matrix for all nodes
-            H_i = self.conv1(X=x_i, edge_index=edge_index, edge_weight=edge_weight, H=H_i)
             
-            H_i = self.dropout3(H_i)
+            if self.compute_explainability:
+                with torch.enable_grad():
+                    H_i = self.conv1(X=x_i, edge_index=edge_index, edge_weight=edge_weight, H=H_i)
+
+                    if self.convNet == 'GConvLSTM' or self.convNet == 'GCLSTM':
+                        H_i = H_i[0]
+                                                
+            else:
+                H_i = self.conv1(X=x_i, edge_index=edge_index, edge_weight=edge_weight, H=H_i)
+
+                if self.convNet == 'GConvLSTM' or self.convNet == 'GCLSTM':
+                    H_i = H_i[0]
+                    
+            if self.compute_attention:
+                similarity_matrix = matmul(x_i, H_i.t())
+                attention_weights = F.softmax(similarity_matrix, dim=-1)
+                attended_hidden_state = matmul(attention_weights, H_i)
+
+                for attended_i, _ in enumerate(attended_hidden_state[0::self.numNodes]): # Because of using batch
+                    self.attended_h.append(attended_hidden_state[attended_i:attended_i+self.numNodes].detach().cpu().numpy())
+            
+            
+            if self.compute_explainability:
+                self.last_conv_act = H_i
+                self.last_conv_act.register_hook(self.set_grad(self.last_conv_act))
+            
+            H_i = self.dropout(H_i)
             
             H_i = self.relu(H_i)
             
@@ -93,13 +164,13 @@ class SpatialTemporalGNN(nn.Module):
         
         x = self.lin1(x)
         
-        x = self.dropout3(x)
+        x = self.dropout(x)
 
         x = self.relu(x)
         
         x = self.lin2(x)
         
-        x = self.dropout3(x)
+        x = self.dropout(x)
 
         x = self.relu(x)
 
