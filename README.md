@@ -28,32 +28,13 @@ The layers of the model are detailed in the following table:
 
 The input to the network contains, for each frame, 26*3 elements because in CARLA there are 26 different joints, and we input the 3D coordinates of them.
 
-When the network uses 8 frames to define this temporal dimension of the Spatial-Temporal GCN, the balanced accuracy of the test subset is the highest (0.8898).
-
-![bal_acc_temporal_test.png](imgs/bal_acc_temporal_test.png)
-
-However, using 8 frames requires 0.8425 minutes per epoch for training and when using 5 frames, only 0.5652 minutes per epoch:
-
-![step_train_time.png](imgs/step_train_time.png)
-
-Similarly, test time increases from 0.2322 minutes with the model of 5 frames to 0.2852 for the model of 8 frames. 
-
-![test_time.png](imgs/test_time.png)
-
-It is also interesting to see that with the validation subset (never used to train), the model with 5 frames performs better:
-
-![bal_acc_temporal_val.png](imgs/bal_acc_temporal_val.png)
-
-For these reasons, to generate the final results of the following section, I have chosen the Spatial-Temporal model that uses 5 frames to define its temporal dimension.
-
-However, you can find all the models exported [here](exportedModels/).
-
-
 # Results
+
+## CARLA dataset
 
 Final results when classifying our CARLA dataset of pedestrian skeletons using the Spatial-Temporal Graph Convolutional Network that uses 5 frames to define the temporal dimension. 
 
-## Metrics
+### Metrics
 
 |            Metric |  train |    val |   test |
 |:------------------|:------:|:------:|:-------|
@@ -63,9 +44,9 @@ Final results when classifying our CARLA dataset of pedestrian skeletons using t
 |            Recall | 0.9078 | 0.8014 | 0.8638 |
 |          f1-score | 0.9204 | 0.8058 | 0.8913 |
 
-## Videos
+### Videos
 
-### Train videos
+#### Train videos
 
 ![2-1-0-0.gif](Videos_results/CARLA/train/2-1-0-0.gif)
 
@@ -80,7 +61,7 @@ Final results when classifying our CARLA dataset of pedestrian skeletons using t
 ![32-12-0-0.gif](Videos_results/CARLA/train/32-12-0-0.gif)
 
 
-### Test videos
+#### Test videos
 
 ![49-2-0-0.gif](Videos_results/CARLA/test/49-2-0-0.gif)
 
@@ -90,3 +71,22 @@ Final results when classifying our CARLA dataset of pedestrian skeletons using t
 
 ![23-4-0-0.gif](Videos_results/CARLA/test/23-4-0-0.gif)
 
+
+## JAAD dataset
+
+Final results when classifying JAAD dataset of pedestrian skeletons using the Spatial-Temporal Graph Convolutional Network that uses 87 frames to define the temporal dimension. 
+
+### Videos
+
+#### Train videos
+
+![video_0003.gif](Videos_results/JAAD/AlphaPose/train/video_0003.gif)
+
+![video_0011.gif](Videos_results/JAAD/AlphaPose/train/video_0011.gif)
+
+
+#### Test videos
+
+![video_0046.gif](Videos_results/JAAD/AlphaPose/test/video_0046.gif)
+
+![video_0053.gif](Videos_results/JAAD/AlphaPose/test/video_0053.gif)
